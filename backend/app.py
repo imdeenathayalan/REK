@@ -1,37 +1,12 @@
-from web3 import Web3
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
+from web3_client import w3, vault, account
 import base64
 import json
 import os
 
-# ---------------- CONFIG ---------------- #
-
-GANACHE_URL = "http://127.0.0.1:7545"
-
-# Update if redeployed
-VAULT_ADDRESS = "0xCcfd7bFA933C4E785294C73a70B891e0D305c1C6"
-
-# Load ABI
-with open("../blockchain/build/contracts/Vault.json") as f:
-    vault_json = json.load(f)
-    VAULT_ABI = vault_json["abi"]
-
-# ---------------------------------------- #
-
-w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
-
-if not w3.is_connected():
-    raise Exception("Blockchain not connected")
-
-account = w3.eth.accounts[0]
-w3.eth.default_account = account
-
-vault = w3.eth.contract(
-    address=VAULT_ADDRESS,
-    abi=VAULT_ABI
-)
-
+# Use deployer account for tx signing
+w3.eth.default_account = account.address
 
 # ---------------- CRYPTO ---------------- #
 
@@ -78,29 +53,51 @@ MASTER_KEY = get_master_key()
 
 # ----------- BLOCKCHAIN OPS ------------ #
 
-def save_data(plain_text):
+def save_data(data):
+    encrypted = encrypt(data, MASTER_KEY)
 
-    encrypted = encrypt(plain_text, MASTER_KEY)
+    nonce = w3.eth.get_transaction_count(account.address)
 
-    tx = vault.functions.setRecord(encrypted).transact()
+    tx = vault.functions.setRecord(encrypted).build_transaction({
+        "from": account.address,
+        "nonce": nonce,
+        "gas": 300000,
+        "gasPrice": w3.eth.gas_price,
+        "chainId": 11155111
+    })
 
-    w3.eth.wait_for_transaction_receipt(tx)
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=account.key)
 
-    print("[+] Data saved on blockchain")
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+
+    print("[+] Stored on-chain")
+    print("TX:", tx_hash.hex())
 
 
 def load_data():
 
-    data, ts = vault.functions.getRecord().call()
+    result = vault.functions.getRecord().call({
+        "from": account.address
+    })
 
-    if data == "":
+    # result = (encrypted_string, timestamp)
+    if not result or len(result) < 1:
         print("[-] No record found")
         return
 
-    decrypted = decrypt(data, MASTER_KEY)
+    encrypted = result[0]   # FIRST element = data
 
-    print("[+] Decrypted Data:", decrypted)
-    print("[+] Last Updated:", ts)
+    if not encrypted:
+        print("[-] No record found")
+        return
+
+    try:
+        decrypted = decrypt(encrypted, MASTER_KEY)
+        print("[+] Decrypted:", decrypted)
+
+    except Exception as e:
+        print("[-] Decryption failed:", e)
+
 
 
 # ---------------- TEST ------------------ #

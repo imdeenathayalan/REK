@@ -1,25 +1,15 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from web3 import Web3
 from eth_account.messages import encode_defunct
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import base64, json, os, secrets
 import hashlib
 
-# ---------------- CONFIG ---------------- #
-
-GANACHE_URL = "http://127.0.0.1:7545"
-
-with open("../blockchain/build/contracts/Vault.json") as f:
-    VAULT_ABI = json.load(f)["abi"]
-
 # ---------------------------------------- #
 
 app = Flask(__name__)
 CORS(app)
-
-w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
 
 # Sessions (temporary)
 sessions = {}
