@@ -1,0 +1,16 @@
+# Python
+backend/vaultenv/
+backend/__pycache__/
+backend/*.key
+backend/keys/
+backend/backup/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Env
+.env
+
+# Logs
+*.log
